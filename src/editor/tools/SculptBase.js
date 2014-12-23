@@ -80,8 +80,19 @@ define([
       this.lastMouseY_ = main.mouseY_;
     },
     updateRender: function (main) {
-      this.updateMeshBuffers();
-      main.render();
+      if (main.useLocalEdit_ && this.mesh_.getDynamicTopology)
+        return;
+      if (main.requestRender()) {
+        main.drawFullScene_ = false;
+        main.drawLocalEditRtt_ = true;
+      }
+    },
+    updateRenderSync: function (main) {
+      if (!main.useLocalEdit_ || !this.mesh_.getDynamicTopology)
+        return;
+      main.drawFullScene_ = false;
+      main.drawLocalEditRtt_ = true;
+      main.applyRender();
     },
     makeStroke: function (mouseX, mouseY, picking, pickingSym) {
       var mesh = this.mesh_;
@@ -90,6 +101,7 @@ define([
         return false;
       picking.pickVerticesInSphere(picking.getLocalRadius2());
       this.stroke(picking);
+      picking.main_.syncRenderLocalEdit();
 
       if (pickingSym) {
         pickingSym.intersectionMouseMesh(mesh, mouseX, mouseY, true);
@@ -99,6 +111,7 @@ define([
         pickingSym.pickVerticesInSphere(pickingSym.getLocalRadius2());
         this.stroke(pickingSym, true);
       }
+      picking.main_.syncRenderLocalEdit();
       return true;
     },
     updateMeshBuffers: function () {
