@@ -67,7 +67,7 @@ define([
       var mouseX = this.lastMouseX_;
       var mouseY = this.lastMouseY_;
 
-      for (var i = 0.0; i <= 1.0; i += step) {
+      for (var i = 0.0; i < 1.0; i += step) {
         if (!this.makeStroke(mouseX, mouseY, picking, pickingSym))
           break;
         mouseX += dx;

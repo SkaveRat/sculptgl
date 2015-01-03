@@ -21,9 +21,49 @@ define([
     this.rLocal2_ = 0.0; // radius of the selection area (local/object space)
     this.rWorld2_ = 0.0; // radius of the selection area (world space)
     this.eyeDir_ = [0.0, 0.0, 0.0]; // eye direction
+
+    // alpha stuffs
+    this.alphaOrigin_ = [0.0, 0.0, 0.0];
+    this.alphaTangent_ = [0.0, 0.0, 0.0];
+    this.alphaNormal_ = [0.0, 0.0, 0.0];
+    this.alphaRadius_ = 0.0;
+    this.lookAtAlpha_ = mat4.create();
+    this.useAlpha_ = false;
   }
 
   Picking.prototype = {
+    setUseAlpha: function (bool) {
+      this.useAlpha_ = bool;
+    },
+    getAlpha: function (x, y, z) {
+      if (!this.useAlpha_) return 1.0;
+      var pt = [x, y, z];
+      var r = this.alphaRadius_;
+      vec3.transformMat4(pt, pt, this.lookAtAlpha_);
+      // console.log(Math.abs(pt.x / r));
+      if (Math.abs(pt[0] / r) > 0.5) return 0.0;
+      if (Math.abs(pt[1] / r) > 0.5) return 0.0;
+      return 1.0;
+    },
+    initAlpha: function (normal, radius) {
+      this.useAlpha_ = true;
+
+      var dir = this.alphaTangent_;
+      vec3.copy(this.alphaNormal_, normal);
+
+      vec3.sub(dir, this.interPoint_, this.alphaOrigin_);
+      vec3.normalize(dir, dir);
+
+      vec3.scaleAndAdd(dir, dir, normal, -vec3.dot(dir, normal));
+      vec3.normalize(dir, dir);
+
+      vec3.copy(this.alphaOrigin_, this.interPoint_);
+
+      vec3.scale(this.alphaNormal_, normal, radius);
+      vec3.scale(this.alphaTangent_, dir, radius);
+      mat4.lookAt(this.lookAtAlpha_, this.interPoint_, this.alphaNormal_, this.alphaTangent_);
+      this.alphaRadius_ = radius;
+    },
     getMesh: function () {
       return this.mesh_;
     },

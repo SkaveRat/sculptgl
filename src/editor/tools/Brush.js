@@ -1,19 +1,22 @@
 define([
+  'lib/glMatrix',
   'misc/Utils',
   'misc/Tablet',
   'editor/tools/SculptBase',
   'editor/tools/Flatten'
-], function (Utils, Tablet, SculptBase, Flatten) {
+], function (glm, Utils, Tablet, SculptBase, Flatten) {
 
   'use strict';
 
+  var vec3 = glm.vec3;
+
   function Brush(states) {
     SculptBase.call(this, states);
-    this.intensity_ = 0.75; // deformation intensity
+    this.intensity_ = 0.5; // deformation intensity
     this.negative_ = false; // opposition deformation
     this.clay_ = true; // clay sculpting (modifier for brush tool)
     this.culling_ = false; // if we backface cull the vertices
-    this.accumulate_ = false; // if ignore the proxy
+    this.accumulate_ = true; // if ignore the proxy
   }
 
   Brush.prototype = {
@@ -31,25 +34,32 @@ define([
       if (this.culling_)
         iVertsInRadius = iVertsFront;
 
-      this.brush(iVertsInRadius, picking.computePickedNormal(), picking.getIntersectionPoint(), picking.getLocalRadius2(), intensity);
-      if (this.clay_) {
+      var r2 = picking.getLocalRadius2();
+      var normal = picking.computePickedNormal();
+      picking.initAlpha(normal, Math.sqrt(r2));
+
+      if (!this.clay_) {
+        this.brush(iVertsInRadius, normal, picking.getIntersectionPoint(), r2, intensity);
+      } else {
         var aNormal = this.areaNormal(iVertsFront);
         if (!aNormal)
           return;
         var aCenter = this.areaCenter(iVertsFront);
-        Flatten.prototype.flatten.call(this, iVertsInRadius, aNormal, aCenter, picking.getIntersectionPoint(), picking.getLocalRadius2(), intensity);
+        var off = Math.sqrt(r2) * 0.1;
+        vec3.scaleAndAdd(aCenter, aCenter, aNormal, this.negative_ ? -off : off);
+        Flatten.prototype.flatten.call(this, iVertsInRadius, aNormal, aCenter, picking.getIntersectionPoint(), r2, intensity, picking);
       }
 
       this.mesh_.updateGeometry(this.mesh_.getFacesFromVertices(iVertsInRadius), iVertsInRadius);
     },
     /** Brush stroke, move vertices along a direction computed by their averaging normals */
-    brush: function (iVertsInRadius, aNormal, center, radiusSquared, intensity) {
+    brush: function (iVertsInRadius, aNormal, center, radiusSquared, intensity, picking) {
       var mesh = this.mesh_;
       var vAr = mesh.getVertices();
       var mAr = mesh.getMaterials();
       var vProxy = this.accumulate_ ? vAr : mesh.getVerticesProxy();
       var radius = Math.sqrt(radiusSquared);
-      var deformIntensityBrush = intensity * radius * (this.clay_ ? 0.1 : 0.05);
+      var deformIntensityBrush = intensity * radius * 0.1;
       if (this.negative_)
         deformIntensityBrush = -deformIntensityBrush;
       var cx = center[0];
@@ -66,13 +76,15 @@ define([
         var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) / radius;
         if (dist >= 1.0)
           continue;
+        var vx = vAr[ind];
+        var vy = vAr[ind + 1];
+        var vz = vAr[ind + 2];
         var fallOff = dist * dist;
         fallOff = 3.0 * fallOff * fallOff - 4.0 * fallOff * dist + 1.0;
-        fallOff *= deformIntensityBrush;
-        fallOff *= mAr[ind + 2];
-        vAr[ind] += anx * fallOff;
-        vAr[ind + 1] += any * fallOff;
-        vAr[ind + 2] += anz * fallOff;
+        fallOff *= mAr[ind + 2] * deformIntensityBrush * picking.getAlpha(vx, vy, vz);
+        vAr[ind] = vx + anx * fallOff;
+        vAr[ind + 1] = vy + any * fallOff;
+        vAr[ind + 2] = vz + anz * fallOff;
       }
     }
   };
